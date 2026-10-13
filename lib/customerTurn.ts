@@ -28,9 +28,12 @@ export function finalizeCustomerTurn(
   { currentMood, trailingFuriousReplies }: { currentMood: Mood; trailingFuriousReplies: number },
 ): CustomerTurn {
   const mood = clampMood(turn.mood, currentMood);
-  // Second reply in a row at -2: the customer hangs up even if the model forgot to.
-  // A model-initiated "hang_up" or "resolved" is kept: its reply already ends the call.
-  const callEnding = turn.callEnding === "none" && mood === -2 && trailingFuriousReplies >= 1 ? "hang_up" : turn.callEnding;
+  // The customer hangs up on the second reply in a row at -2 (the opening line
+  // does not count), whatever the model decided, so the trainee always gets a second chance.
+  const mustHangUp = mood === -2 && trailingFuriousReplies >= 1;
+  let callEnding = turn.callEnding;
+  if (mustHangUp) callEnding = "hang_up";
+  else if (callEnding === "hang_up") callEnding = "none";
   return {
     moodReason: turn.moodReason,
     mood,

@@ -108,7 +108,7 @@ export const CustomerTurnModelSchema = z.object({
     .min(1)
     .max(300)
     .describe(
-      "Une phrase courte et neutre qui explique l'évolution de ton humeur après le dernier message du conseiller.",
+      "Une phrase courte et neutre, à la troisième personne, qui décrit ce que le conseiller a fait et explique l'évolution de ton humeur.",
     ),
   mood: z
     .int()
@@ -128,7 +128,7 @@ export const CustomerTurnModelSchema = z.object({
     .trim()
     .min(1)
     .max(MAX_CUSTOMER_MESSAGE_CHARS)
-    .describe("Ta réplique de client : 1 à 3 phrases en français oral, sans liste, sans markdown, sans émoji."),
+    .describe("Ta réplique de client : 1 à 3 phrases courtes (40 mots au plus) en français oral, sans liste, sans markdown, sans émoji."),
 });
 export type CustomerTurnModel = z.infer<typeof CustomerTurnModelSchema>;
 

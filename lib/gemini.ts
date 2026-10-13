@@ -4,12 +4,14 @@ import { ApiError, GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 
 /**
- * Current stable Flash model (https://ai.google.dev/gemini-api/docs/models, checked October 2026).
- * Override with the GEMINI_MODEL env var.
+ * Current stable Flash-Lite model (https://ai.google.dev/gemini-api/docs/models, checked October 2026).
+ * In playtests it answered in ~1 s, while gemini-3.8-flash took 3-26 s, hit free-tier
+ * quota after a dozen calls and returned 503 "high demand". Override with GEMINI_MODEL.
  */
-export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 
-const REQUEST_TIMEOUT_MS = 25_000;
+const REQUEST_TIMEOUT_MS = 15_000;
+const RETRY_DELAY_MS = 800;
 const MAX_ATTEMPTS = 2; // first try + one retry
 
 /** The server is missing its Gemini configuration (e.g. no API key). */
@@ -172,6 +174,7 @@ export async function generateStructured<T>({
       lastError = error;
     }
     console.warn(`[gemini] ${label}: attempt ${attempt}/${MAX_ATTEMPTS} failed:`, describeError(lastError));
+    if (attempt < MAX_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
   }
 
   throw lastError instanceof Error ? lastError : new GeminiOutputError(`${label}: no valid output.`);
