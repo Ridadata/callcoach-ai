@@ -1,4 +1,4 @@
-import type { CriterionId, Evaluation } from "./schemas";
+import type { CriterionId } from "./schemas";
 
 // Overall score: computed in code, never by the model.
 
@@ -11,7 +11,7 @@ export const CRITERION_WEIGHTS: Record<CriterionId, number> = {
 };
 
 /** overall = round( Σ weight × (score − 1) / 4 × 100 ), from 0 to 100. Integer maths avoids float drift. */
-export function computeOverall(criteria: Evaluation["criteria"]): number {
+export function computeOverall(criteria: ReadonlyArray<{ id: CriterionId; score: number }>): number {
   const weighted = criteria.reduce((sum, { id, score }) => sum + CRITERION_WEIGHTS[id] * (score - 1), 0);
   return Math.round(weighted / 4);
 }

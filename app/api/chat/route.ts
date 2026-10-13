@@ -3,10 +3,11 @@ import { ApiError } from "@google/genai";
 import { countTrailingFuriousReplies, finalizeCustomerTurn } from "@/lib/customerTurn";
 import { describeError, GeminiConfigError, generateStructured } from "@/lib/gemini";
 import { buildCustomerSystemPrompt, buildCustomerTurnPrompt } from "@/lib/prompts";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { getScenario } from "@/lib/scenarios";
 import { ChatRequestSchema, countAgentMessages, CustomerTurnModelSchema } from "@/lib/schemas";
 
-// Two Gemini attempts of up to 25 s each must fit in the function time limit.
+// Two Gemini attempts of up to 15 s each must fit in the function time limit.
 export const maxDuration = 60;
 
 const MAX_BODY_CHARS = 100_000;
@@ -17,6 +18,9 @@ function jsonError(status: number, error: string): Response {
 
 /** One customer turn: answers the last agent message of the transcript. */
 export async function POST(request: Request): Promise<Response> {
+  const limited = rateLimit("chat", clientKey(request));
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSec, "de messages");
+
   const raw = await request.text();
   if (raw.length > MAX_BODY_CHARS) {
     return jsonError(413, "Requête trop volumineuse.");

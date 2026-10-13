@@ -3,6 +3,7 @@ import { ApiError, ThinkingLevel } from "@google/genai";
 import { verifyEvaluation } from "@/lib/evidence";
 import { describeError, GeminiConfigError, generateStructured } from "@/lib/gemini";
 import { buildJudgeSystemPrompt, buildJudgeTranscriptPrompt } from "@/lib/prompts";
+import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { getScenario } from "@/lib/scenarios";
 import { EvaluateRequestSchema, EvaluationModelSchema, type EvaluateResponse } from "@/lib/schemas";
 import { computeOverall } from "@/lib/scoring";
@@ -19,6 +20,9 @@ function jsonError(status: number, error: string): Response {
 
 /** Judges a finished call. The transcript is used for this request only and never stored. */
 export async function POST(request: Request): Promise<Response> {
+  const limited = rateLimit("evaluate", clientKey(request));
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSec, "d'analyses");
+
   const raw = await request.text();
   if (raw.length > MAX_BODY_CHARS) {
     return jsonError(413, "Requête trop volumineuse.");

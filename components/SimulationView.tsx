@@ -13,19 +13,22 @@ import { MessageComposer } from "@/components/MessageComposer";
 import { MoodMeter } from "@/components/MoodMeter";
 import { callReducer, canAgentSend, createInitialCallState, outcomeAfterReply } from "@/lib/callSession";
 import { DIFFICULTY_LABELS } from "@/lib/labels";
-import { saveReport } from "@/lib/reportStorage";
+import { saveReport, setReportLogStatus } from "@/lib/reportStorage";
 import type { PublicScenario } from "@/lib/scenarios";
 import {
   ApiErrorSchema,
   countAgentMessages,
   CustomerTurnSchema,
   EvaluateResponseSchema,
+  LogResponseSchema,
   MAX_AGENT_MESSAGES,
   type ChatMessage,
   type Difficulty,
   type Mood,
   type Outcome,
+  type StoredReport,
 } from "@/lib/schemas";
+import { newSessionId, toSessionLog } from "@/lib/sessionLog";
 import { useTraineeName } from "@/lib/trainee";
 
 /** Delay before the customer picks up and speaks first. */
@@ -82,6 +85,12 @@ async function postJson<T>(url: string, body: unknown, schema: z.ZodType<T>, fal
   return parsed.success ? { ok: true, data: parsed.data } : { ok: false, error: fallbackError };
 }
 
+/** Sends the session summary to Google Sheets in the background and records the result on the report. */
+async function logSession(report: StoredReport) {
+  const result = await postJson("/api/log", toSessionLog(report), LogResponseSchema, "");
+  setReportLogStatus(report.sessionId, result.ok ? (result.data.logged ? "logged" : "disabled") : "failed");
+}
+
 interface CallSessionProps extends SimulationViewProps {
   onReplay: () => void;
 }
@@ -131,8 +140,10 @@ function CallSession({ scenario, difficulty, onReplay }: CallSessionProps) {
       dispatch({ type: "analysisFailed", error: result.error });
       return;
     }
-    saveReport({
-      version: 1,
+    const report: StoredReport = {
+      version: 2,
+      sessionId: newSessionId(),
+      logStatus: "pending",
       scenario: {
         id: scenario.id,
         title: scenario.title,
@@ -149,9 +160,11 @@ function CallSession({ scenario, difficulty, onReplay }: CallSessionProps) {
       transcript,
       result: result.data,
       createdAt: endedAt,
-    });
+    };
+    saveReport(report);
     dispatch({ type: "analysisSucceeded" });
     router.push("/rapport");
+    void logSession(report);
   }
 
   function finishCall(transcript: ChatMessage[], finalMood: Mood, outcome: Outcome, endedAt: number) {

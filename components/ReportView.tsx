@@ -9,7 +9,14 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { RewriteCard } from "@/components/RewriteCard";
 import { DIFFICULTY_LABELS, MOOD_LABELS, OUTCOME_LABELS } from "@/lib/labels";
 import { useStoredReport } from "@/lib/reportStorage";
-import { countAgentMessages, type StoredReport } from "@/lib/schemas";
+import { countAgentMessages, type LogStatus, type StoredReport } from "@/lib/schemas";
+
+const LOG_NOTICES: Record<LogStatus, string> = {
+  pending: "Enregistrement du résultat…",
+  logged: "Résultat transmis à ton formateur (scores et synthèse uniquement, jamais la conversation).",
+  disabled: "Résultat non enregistré (journalisation désactivée)",
+  failed: "Résultat non enregistré (journalisation indisponible)",
+};
 
 /** Rapport page content, read from the report the simulation stored in sessionStorage. */
 export function ReportView() {
@@ -107,6 +114,10 @@ function Report({ report }: { report: StoredReport }) {
           </div>
         </div>
       </section>
+
+      <p role="status" className="-mt-5 text-xs text-muted">
+        {LOG_NOTICES[report.logStatus]}
+      </p>
 
       <section aria-labelledby="criteria-title">
         <h2 id="criteria-title" className="text-lg font-semibold">

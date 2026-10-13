@@ -244,9 +244,42 @@ export const EvaluateResponseSchema = z.object({
 });
 export type EvaluateResponse = z.infer<typeof EvaluateResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// Logging to Google Sheets. Only scores and the summary: never the transcript.
+
+export const SessionLogSchema = z.object({
+  sessionId: z.uuid(),
+  timestamp: z.iso.datetime(),
+  traineeName: z.string().trim().min(1).max(40),
+  scenarioId: z.string().min(1).max(64),
+  difficulty: DifficultySchema,
+  turns: z.int().min(0).max(MAX_AGENT_MESSAGES),
+  durationSec: z.int().min(0).max(4 * 3600),
+  finalMood: MoodSchema,
+  outcome: OutcomeSchema,
+  scores: z.object({
+    empathie: ScoreSchema,
+    ecoute: ScoreSchema,
+    resolution: ScoreSchema,
+    professionnalisme: ScoreSchema,
+  }),
+  overall: z.int().min(0).max(100),
+  hiddenIssueFound: z.boolean(),
+  summary: z.string().trim().min(1).max(800),
+});
+export type SessionLog = z.infer<typeof SessionLogSchema>;
+
+/** POST /api/log response: `logged` is false when logging is disabled or Apps Script failed. */
+export const LogResponseSchema = z.object({ logged: z.boolean() });
+
+export const LogStatusSchema = z.enum(["pending", "logged", "disabled", "failed"]);
+export type LogStatus = z.infer<typeof LogStatusSchema>;
+
 /** What the simulation hands to the Rapport page through sessionStorage. */
 export const StoredReportSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
+  sessionId: z.uuid(),
+  logStatus: LogStatusSchema,
   scenario: z.object({
     id: z.string(),
     title: z.string(),
