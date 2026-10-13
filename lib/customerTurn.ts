@@ -34,6 +34,9 @@ export function finalizeCustomerTurn(
   let callEnding = turn.callEnding;
   if (mustHangUp) callEnding = "hang_up";
   else if (callEnding === "hang_up") callEnding = "none";
+  // "resolved" requires a satisfied customer (+2), otherwise the call would end before
+  // the trainee can complete the resolution.
+  if (callEnding === "resolved" && mood !== 2) callEnding = "none";
   return {
     moodReason: turn.moodReason,
     mood,

@@ -1,4 +1,4 @@
-import type { Difficulty, Mood, Outcome } from "./schemas";
+import type { CriterionId, Difficulty, Mood, Outcome } from "./schemas";
 
 // French UI labels shared by client components.
 
@@ -34,4 +34,18 @@ export const OUTCOME_DESCRIPTIONS: Record<Outcome, string> = {
   hang_up: "Le client a perdu patience et a mis fin à l'appel.",
   ended_by_agent: "Tu as mis fin à l'appel.",
   max_turns: "La limite de messages de l'appel est atteinte.",
+};
+
+export const CRITERION_LABELS: Record<CriterionId, string> = {
+  empathie: "Empathie",
+  ecoute: "Écoute",
+  resolution: "Résolution",
+  professionnalisme: "Professionnalisme",
+};
+
+export const CRITERION_HINTS: Record<CriterionId, string> = {
+  empathie: "Reconnaître l'émotion du client, s'excuser quand c'est justifié.",
+  ecoute: "Reformuler, poser des questions ouvertes, découvrir le problème caché.",
+  resolution: "Proposer une solution concrète et datée, vérifier qu'elle convient.",
+  professionnalisme: "Clarté, politesse, promesses réalistes, conclusion propre.",
 };

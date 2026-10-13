@@ -53,6 +53,7 @@ export async function POST(request: Request): Promise<Response> {
         agentMessageCount: countAgentMessages(transcript),
       }),
       schema: CustomerTurnModelSchema,
+      signal: request.signal,
     });
     return Response.json(finalizeCustomerTurn(turn, { currentMood, trailingFuriousReplies }));
   } catch (error) {

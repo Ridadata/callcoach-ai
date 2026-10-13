@@ -1,16 +1,20 @@
 import {
   countAgentMessages,
   MAX_AGENT_MESSAGES,
+  type CallEnding,
   type ChatMessage,
   type CustomerTurn,
   type Mood,
   type Outcome,
 } from "./schemas";
 
-// Client-side state of one simulated call. Pure reducer: timestamps are passed
-// in by event handlers so rendering stays free of Date.now().
+// Client-side state of one simulated call. Pure reducer: timestamps and messages
+// are built by event handlers so rendering stays free of Date.now().
 
 export type CallPhase = "connecting" | "active" | "ended";
+
+/** Coaching analysis of the finished call (POST /api/evaluate). */
+export type AnalysisState = { status: "idle" } | { status: "loading" } | { status: "error"; error: string } | { status: "done" };
 
 export interface CallState {
   phase: CallPhase;
@@ -24,15 +28,19 @@ export interface CallState {
   startedAt: number | null;
   endedAt: number | null;
   outcome: Outcome | null;
+  analysis: AnalysisState;
 }
 
 export type CallAction =
   | { type: "connected"; openingLine: string; now: number }
   | { type: "agentSent"; message: ChatMessage }
-  | { type: "customerReplied"; turn: CustomerTurn; now: number }
+  | { type: "customerReplied"; reply: ChatMessage; turn: CustomerTurn }
   | { type: "requestFailed"; error: string }
   | { type: "retried" }
-  | { type: "endedByAgent"; now: number };
+  | { type: "endedByAgent"; now: number }
+  | { type: "analysisStarted" }
+  | { type: "analysisFailed"; error: string }
+  | { type: "analysisSucceeded" };
 
 export function createInitialCallState(startMood: Mood): CallState {
   return {
@@ -46,12 +54,19 @@ export function createInitialCallState(startMood: Mood): CallState {
     startedAt: null,
     endedAt: null,
     outcome: null,
+    analysis: { status: "idle" },
   };
 }
 
 /** The trainee can type only when the call is live and the customer is not answering. */
 export function canAgentSend(state: CallState): boolean {
   return state.phase === "active" && !state.pending && state.error === null;
+}
+
+/** How the call ends after a customer reply, or null if it goes on. */
+export function outcomeAfterReply(messages: readonly ChatMessage[], callEnding: CallEnding): Outcome | null {
+  if (callEnding !== "none") return callEnding;
+  return countAgentMessages(messages) >= MAX_AGENT_MESSAGES ? "max_turns" : null;
 }
 
 export function callReducer(state: CallState, action: CallAction): CallState {
@@ -66,14 +81,8 @@ export function callReducer(state: CallState, action: CallAction): CallState {
       return { ...state, messages: [...state.messages, action.message], pending: true };
     case "customerReplied": {
       if (state.phase !== "active" || !state.pending) return state;
-      const reply: ChatMessage = { role: "customer", text: action.turn.reply, mood: action.turn.mood, ts: action.now };
-      const messages = [...state.messages, reply];
-      const outcome: Outcome | null =
-        action.turn.callEnding !== "none"
-          ? action.turn.callEnding
-          : countAgentMessages(messages) >= MAX_AGENT_MESSAGES
-            ? "max_turns"
-            : null;
+      const messages = [...state.messages, action.reply];
+      const outcome = outcomeAfterReply(messages, action.turn.callEnding);
       return {
         ...state,
         messages,
@@ -81,7 +90,7 @@ export function callReducer(state: CallState, action: CallAction): CallState {
         moodReason: action.turn.moodReason,
         hiddenIssueRevealed: state.hiddenIssueRevealed || action.turn.hiddenIssueRevealed,
         pending: false,
-        ...(outcome ? { phase: "ended", outcome, endedAt: action.now } : {}),
+        ...(outcome ? { phase: "ended", outcome, endedAt: action.reply.ts } : {}),
       };
     }
     case "requestFailed":
@@ -93,5 +102,11 @@ export function callReducer(state: CallState, action: CallAction): CallState {
     case "endedByAgent":
       if (state.phase !== "active") return state;
       return { ...state, phase: "ended", outcome: "ended_by_agent", endedAt: action.now, pending: false, error: null };
+    case "analysisStarted":
+      return state.phase === "ended" ? { ...state, analysis: { status: "loading" } } : state;
+    case "analysisFailed":
+      return state.phase === "ended" ? { ...state, analysis: { status: "error", error: action.error } } : state;
+    case "analysisSucceeded":
+      return state.phase === "ended" ? { ...state, analysis: { status: "done" } } : state;
   }
 }

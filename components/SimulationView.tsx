@@ -3,29 +3,35 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
+import type { z } from "zod";
 
+import { AnalysisScreen } from "@/components/AnalysisScreen";
 import { durationInSeconds, CallTimer } from "@/components/CallTimer";
 import { CallEndedPanel } from "@/components/CallEndedPanel";
 import { ChatWindow } from "@/components/ChatWindow";
 import { MessageComposer } from "@/components/MessageComposer";
 import { MoodMeter } from "@/components/MoodMeter";
-import { callReducer, canAgentSend, createInitialCallState } from "@/lib/callSession";
+import { callReducer, canAgentSend, createInitialCallState, outcomeAfterReply } from "@/lib/callSession";
 import { DIFFICULTY_LABELS } from "@/lib/labels";
+import { saveReport } from "@/lib/reportStorage";
 import type { PublicScenario } from "@/lib/scenarios";
 import {
   ApiErrorSchema,
   countAgentMessages,
   CustomerTurnSchema,
+  EvaluateResponseSchema,
   MAX_AGENT_MESSAGES,
   type ChatMessage,
   type Difficulty,
   type Mood,
+  type Outcome,
 } from "@/lib/schemas";
 import { useTraineeName } from "@/lib/trainee";
 
 /** Delay before the customer picks up and speaks first. */
 const CONNECT_DELAY_MS = 800;
 const REPLY_ERROR = "Le client n'a pas pu répondre. Réessaie.";
+const ANALYSIS_ERROR = "L'analyse de l'appel n'a pas pu aboutir. Réessaie.";
 const NETWORK_ERROR = "Impossible de joindre le serveur. Vérifie ta connexion et réessaie.";
 
 interface SimulationViewProps {
@@ -52,30 +58,28 @@ export function SimulationView({ scenario, difficulty }: SimulationViewProps) {
   );
 }
 
-async function fetchCustomerTurn(body: {
-  scenarioId: string;
-  difficulty: Difficulty;
-  transcript: ChatMessage[];
-  currentMood: Mood;
-}) {
+type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+/** POSTs JSON and validates the response with zod; failures come back as French messages. */
+async function postJson<T>(url: string, body: unknown, schema: z.ZodType<T>, fallbackError: string): Promise<ApiResult<T>> {
   let response: Response;
   try {
-    response = await fetch("/api/chat", {
+    response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch {
-    return { ok: false as const, error: NETWORK_ERROR };
+    return { ok: false, error: NETWORK_ERROR };
   }
 
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const apiError = ApiErrorSchema.safeParse(payload);
-    return { ok: false as const, error: apiError.success ? apiError.data.error : REPLY_ERROR };
+    return { ok: false, error: apiError.success ? apiError.data.error : fallbackError };
   }
-  const turn = CustomerTurnSchema.safeParse(payload);
-  return turn.success ? { ok: true as const, turn: turn.data } : { ok: false as const, error: REPLY_ERROR };
+  const parsed = schema.safeParse(payload);
+  return parsed.success ? { ok: true, data: parsed.data } : { ok: false, error: fallbackError };
 }
 
 interface CallSessionProps extends SimulationViewProps {
@@ -83,9 +87,12 @@ interface CallSessionProps extends SimulationViewProps {
 }
 
 function CallSession({ scenario, difficulty, onReplay }: CallSessionProps) {
+  const router = useRouter();
   const [state, dispatch] = useReducer(callReducer, scenario.startMood[difficulty], createInitialCallState);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const confirmEndRef = useRef<HTMLButtonElement>(null);
+  // Set as soon as the call ends, so a late customer reply cannot reopen it.
+  const callEndedRef = useRef(false);
   const traineeName = useTraineeName();
 
   const agentMessages = countAgentMessages(state.messages);
@@ -104,13 +111,73 @@ function CallSession({ scenario, difficulty, onReplay }: CallSessionProps) {
     if (confirmingEnd) confirmEndRef.current?.focus();
   }, [confirmingEnd]);
 
-  async function requestCustomerTurn(transcript: ChatMessage[], currentMood: Mood) {
-    const result = await fetchCustomerTurn({ scenarioId: scenario.id, difficulty, transcript, currentMood });
-    if (result.ok) {
-      dispatch({ type: "customerReplied", turn: result.turn, now: Date.now() });
-    } else {
-      dispatch({ type: "requestFailed", error: result.error });
+  /** Sends the finished call to the judge once, then opens the report. */
+  async function analyzeCall(
+    transcript: ChatMessage[],
+    finalMood: Mood,
+    outcome: Outcome,
+    startedAt: number,
+    endedAt: number,
+  ) {
+    if (countAgentMessages(transcript) === 0) return; // nothing to evaluate
+    dispatch({ type: "analysisStarted" });
+    const result = await postJson(
+      "/api/evaluate",
+      { scenarioId: scenario.id, difficulty, transcript, finalMood, outcome },
+      EvaluateResponseSchema,
+      ANALYSIS_ERROR,
+    );
+    if (!result.ok) {
+      dispatch({ type: "analysisFailed", error: result.error });
+      return;
     }
+    saveReport({
+      version: 1,
+      scenario: {
+        id: scenario.id,
+        title: scenario.title,
+        category: scenario.category,
+        personaName: scenario.persona.name,
+        personaCity: scenario.persona.city,
+      },
+      difficulty,
+      traineeName,
+      outcome,
+      finalMood,
+      durationSec: durationInSeconds(startedAt, endedAt),
+      agentMessages: countAgentMessages(transcript),
+      transcript,
+      result: result.data,
+      createdAt: endedAt,
+    });
+    dispatch({ type: "analysisSucceeded" });
+    router.push("/rapport");
+  }
+
+  function finishCall(transcript: ChatMessage[], finalMood: Mood, outcome: Outcome, endedAt: number) {
+    if (callEndedRef.current) return;
+    callEndedRef.current = true;
+    void analyzeCall(transcript, finalMood, outcome, state.startedAt ?? endedAt, endedAt);
+  }
+
+  async function requestCustomerTurn(transcript: ChatMessage[], currentMood: Mood) {
+    const result = await postJson(
+      "/api/chat",
+      { scenarioId: scenario.id, difficulty, transcript, currentMood },
+      CustomerTurnSchema,
+      REPLY_ERROR,
+    );
+    if (callEndedRef.current) return;
+    if (!result.ok) {
+      dispatch({ type: "requestFailed", error: result.error });
+      return;
+    }
+    const turn = result.data;
+    const reply: ChatMessage = { role: "customer", text: turn.reply, mood: turn.mood, ts: Date.now() };
+    dispatch({ type: "customerReplied", reply, turn });
+    const messages = [...transcript, reply];
+    const outcome = outcomeAfterReply(messages, turn.callEnding);
+    if (outcome) finishCall(messages, turn.mood, outcome, reply.ts);
   }
 
   function handleSend(text: string) {
@@ -128,12 +195,21 @@ function CallSession({ scenario, difficulty, onReplay }: CallSessionProps) {
 
   function handleEndCall() {
     setConfirmingEnd(false);
-    dispatch({ type: "endedByAgent", now: Date.now() });
+    const now = Date.now();
+    dispatch({ type: "endedByAgent", now });
+    finishCall(state.messages, state.mood, "ended_by_agent", now);
+  }
+
+  function handleRetryAnalysis() {
+    if (state.analysis.status !== "error" || !state.outcome || state.startedAt === null || state.endedAt === null) return;
+    void analyzeCall(state.messages, state.mood, state.outcome, state.startedAt, state.endedAt);
   }
 
   return (
     <div className="mx-auto flex h-dvh w-full max-w-3xl flex-col sm:px-4 sm:py-4">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background sm:rounded-2xl sm:border sm:border-border sm:shadow-sm">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background sm:rounded-2xl sm:border sm:border-border sm:shadow-sm">
+        {state.analysis.status === "loading" && <AnalysisScreen customerName={scenario.persona.name} />}
+
         <header className="border-b border-border bg-surface px-4 pb-3 pt-3">
           <div className="flex items-center justify-between gap-3 text-sm">
             <Link href="/" className="rounded font-medium text-muted hover:text-foreground">
@@ -222,7 +298,9 @@ function CallSession({ scenario, difficulty, onReplay }: CallSessionProps) {
             }
             finalMood={state.mood}
             agentMessages={agentMessages}
+            analysis={state.analysis}
             onReplay={onReplay}
+            onRetryAnalysis={handleRetryAnalysis}
           />
         ) : (
           <MessageComposer disabled={!canAgentSend(state)} onSend={handleSend} />

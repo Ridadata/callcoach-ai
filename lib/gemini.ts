@@ -10,7 +10,7 @@ import { z } from "zod";
  */
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 
-const REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_TIMEOUT_MS = 15_000;
 const RETRY_DELAY_MS = 800;
 const MAX_ATTEMPTS = 2; // first try + one retry
 
@@ -131,6 +131,10 @@ interface StructuredRequest<T> {
   prompt: string;
   schema: z.ZodType<T>;
   thinkingLevel?: ThinkingLevel;
+  /** Per-attempt timeout. */
+  timeoutMs?: number;
+  /** Aborts the call, e.g. when the browser disconnects (pass request.signal). */
+  signal?: AbortSignal;
 }
 
 /**
@@ -146,6 +150,8 @@ export async function generateStructured<T>({
   prompt,
   schema,
   thinkingLevel = ThinkingLevel.LOW,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  signal,
 }: StructuredRequest<T>): Promise<T> {
   const ai = getClient();
   const responseJsonSchema = toGeminiJsonSchema(schema);
@@ -161,7 +167,7 @@ export async function generateStructured<T>({
           responseMimeType: "application/json",
           responseJsonSchema,
           thinkingConfig: { thinkingLevel },
-          abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          abortSignal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
         },
       });
       const parsed = schema.safeParse(parseJson(response.text));
@@ -170,7 +176,7 @@ export async function generateStructured<T>({
         `${label}: output did not match the schema (finishReason: ${response.candidates?.[0]?.finishReason ?? "unknown"}).`,
       );
     } catch (error) {
-      if (!isRetryable(error)) throw error;
+      if (signal?.aborted || !isRetryable(error)) throw error;
       lastError = error;
     }
     console.warn(`[gemini] ${label}: attempt ${attempt}/${MAX_ATTEMPTS} failed:`, describeError(lastError));
