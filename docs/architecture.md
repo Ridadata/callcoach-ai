@@ -98,6 +98,7 @@ sequenceDiagram
 | Quota abuse | In-memory rate limit per IP: 30 chats, 5 evaluations, 10 logs per 10 minutes (best-effort on serverless) | `lib/rateLimit.ts` |
 | Spreadsheet formula injection | Text starting with `= + - @` is stored as plain text | `apps-script/Code.gs` |
 | Duplicate log rows | Apps Script skips a `sessionId` already in the sheet | `apps-script/Code.gs` |
+| Clickjacking, MIME sniffing | Security headers on every response, no `X-Powered-By` | `next.config.ts` |
 
 ## Project structure
 
@@ -119,6 +120,8 @@ lib/
   evidence.ts      Verbatim-quote check
   scoring.ts       Overall score
   rateLimit.ts     In-memory rate limiter
+  labels.ts        French UI labels
   reportStorage.ts · trainee.ts · sessionLog.ts   Browser storage and the Sheets row
 apps-script/       Code.gs + appsscript.json (Google Sheets logger and weekly report)
+docs/              Architecture, Apps Script setup guide, screenshots
 ```
