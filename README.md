@@ -15,7 +15,7 @@
 <br>
 
 <p align="center">
-  <img src="docs/screenshots/call.png" alt="A call in progress, with the customer's mood, a timer and the message counter" width="860">
+  <img src="docs/screenshots/call.png" alt="A call in progress, with the customer's mood, a timer and the message counter" width="700">
 </p>
 
 ## Features
@@ -34,7 +34,7 @@
 Every quote is checked word for word against what the trainee wrote, and the overall score is computed from weighted criteria.
 
 <p align="center">
-  <img src="docs/screenshots/report.png" alt="Coaching report with the overall score, summary and verified quotes" width="860">
+  <img src="docs/screenshots/report.png" alt="Coaching report with the overall score, summary and verified quotes" width="700">
 </p>
 
 ### On mobile
