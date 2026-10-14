@@ -1,5 +1,6 @@
 import { ApiError } from "@google/genai";
 
+import { jsonError, parseJsonBody } from "@/lib/apiRequest";
 import { countTrailingFuriousReplies, finalizeCustomerTurn } from "@/lib/customerTurn";
 import { describeError, GeminiConfigError, generateStructured } from "@/lib/gemini";
 import { buildCustomerSystemPrompt, buildCustomerTurnPrompt } from "@/lib/prompts";
@@ -12,33 +13,15 @@ export const maxDuration = 60;
 
 const MAX_BODY_CHARS = 100_000;
 
-function jsonError(status: number, error: string): Response {
-  return Response.json({ error }, { status });
-}
-
 /** One customer turn: answers the last agent message of the transcript. */
 export async function POST(request: Request): Promise<Response> {
   const limited = rateLimit("chat", clientKey(request));
   if (!limited.ok) return rateLimitResponse(limited.retryAfterSec, "de messages");
 
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_CHARS) {
-    return jsonError(413, "Requête trop volumineuse.");
-  }
+  const body = await parseJsonBody(request, ChatRequestSchema, MAX_BODY_CHARS);
+  if (!body.ok) return body.response;
 
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    return jsonError(400, "Requête invalide.");
-  }
-
-  const parsed = ChatRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonError(400, parsed.error.issues[0]?.message ?? "Requête invalide.");
-  }
-
-  const { scenarioId, difficulty, transcript, currentMood } = parsed.data;
+  const { scenarioId, difficulty, transcript, currentMood } = body.data;
   const scenario = getScenario(scenarioId);
   if (!scenario) {
     return jsonError(404, "Scénario introuvable.");

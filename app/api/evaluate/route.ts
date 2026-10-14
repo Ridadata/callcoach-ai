@@ -1,5 +1,6 @@
 import { ApiError, ThinkingLevel } from "@google/genai";
 
+import { jsonError, parseJsonBody } from "@/lib/apiRequest";
 import { verifyEvaluation } from "@/lib/evidence";
 import { describeError, GeminiConfigError, generateStructured } from "@/lib/gemini";
 import { buildJudgeSystemPrompt, buildJudgeTranscriptPrompt } from "@/lib/prompts";
@@ -14,33 +15,15 @@ export const maxDuration = 60;
 const MAX_BODY_CHARS = 100_000;
 const JUDGE_TIMEOUT_MS = 25_000;
 
-function jsonError(status: number, error: string): Response {
-  return Response.json({ error }, { status });
-}
-
 /** Judges a finished call. The transcript is used for this request only and never stored. */
 export async function POST(request: Request): Promise<Response> {
   const limited = rateLimit("evaluate", clientKey(request));
   if (!limited.ok) return rateLimitResponse(limited.retryAfterSec, "d'analyses");
 
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_CHARS) {
-    return jsonError(413, "Requête trop volumineuse.");
-  }
+  const body = await parseJsonBody(request, EvaluateRequestSchema, MAX_BODY_CHARS);
+  if (!body.ok) return body.response;
 
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    return jsonError(400, "Requête invalide.");
-  }
-
-  const parsed = EvaluateRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonError(400, parsed.error.issues[0]?.message ?? "Requête invalide.");
-  }
-
-  const { scenarioId, transcript, finalMood, outcome } = parsed.data;
+  const { scenarioId, transcript, finalMood, outcome } = body.data;
   const scenario = getScenario(scenarioId);
   if (!scenario) {
     return jsonError(404, "Scénario introuvable.");

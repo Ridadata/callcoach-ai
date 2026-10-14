@@ -21,7 +21,6 @@ export interface CallState {
   messages: ChatMessage[];
   mood: Mood;
   moodReason: string | null;
-  hiddenIssueRevealed: boolean;
   /** Waiting for the customer's reply. */
   pending: boolean;
   error: string | null;
@@ -48,7 +47,6 @@ export function createInitialCallState(startMood: Mood): CallState {
     messages: [],
     mood: startMood,
     moodReason: null,
-    hiddenIssueRevealed: false,
     pending: false,
     error: null,
     startedAt: null,
@@ -88,7 +86,6 @@ export function callReducer(state: CallState, action: CallAction): CallState {
         messages,
         mood: action.turn.mood,
         moodReason: action.turn.moodReason,
-        hiddenIssueRevealed: state.hiddenIssueRevealed || action.turn.hiddenIssueRevealed,
         pending: false,
         ...(outcome ? { phase: "ended", outcome, endedAt: action.reply.ts } : {}),
       };

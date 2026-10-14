@@ -1,6 +1,5 @@
 import { CRITERION_HINTS, CRITERION_LABELS } from "@/lib/labels";
-import type { Evaluation } from "@/lib/schemas";
-import { SCORES } from "@/lib/schemas";
+import { SCORES, type Evaluation } from "@/lib/schemas";
 import { CRITERION_WEIGHTS } from "@/lib/scoring";
 
 type Criterion = Evaluation["criteria"][number];

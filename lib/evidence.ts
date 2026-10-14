@@ -1,4 +1,4 @@
-import type { ChatMessage, Evaluation, EvaluationModel, Evidence, Score } from "./schemas";
+import { CRITERION_IDS, SCORES, type ChatMessage, type Evaluation, type EvaluationModel, type Evidence, type Score } from "./schemas";
 
 // Verbatim-quote check. Every quote the judge attributes to the trainee
 // must really appear in one of their messages; otherwise it is dropped. Matching
@@ -85,10 +85,8 @@ function locate(quote: string, claimedIndex: number, agentMessages: readonly str
   return null;
 }
 
-const SCORE_VALUES: readonly Score[] = [1, 2, 3, 4, 5];
-
 function toScore(value: number): Score {
-  return SCORE_VALUES.find((score) => score === value) ?? 1;
+  return SCORES.find((score) => score === value) ?? 1;
 }
 
 export interface QuoteCheck {
@@ -107,7 +105,7 @@ export function verifyEvaluation(
   const agentMessages = transcript.filter((message) => message.role === "agent").map((message) => message.text);
   const quoteCheck: QuoteCheck = { kept: 0, removed: 0 };
 
-  const criteria = (["empathie", "ecoute", "resolution", "professionnalisme"] as const).map((id) => {
+  const criteria = CRITERION_IDS.map((id) => {
     const criterion = model.criteria[id];
     const evidence: Evidence[] = [];
     for (const item of criterion.evidence) {

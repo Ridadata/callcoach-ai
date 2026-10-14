@@ -88,7 +88,7 @@ sequenceDiagram
 
 | Concern | Measure | Code |
 | --- | --- | --- |
-| Malformed or malicious requests | Every API input is validated with zod (role alternation, 600-character agent messages, max 30 messages, mood consistency) | `lib/schemas.ts` |
+| Malformed or malicious requests | Every API input is validated with zod (role alternation, 600-character agent messages, max 30 messages, mood consistency) | `lib/schemas.ts`, `lib/apiRequest.ts` |
 | Model output drift | Structured JSON output from a schema derived from zod; zod validation, one retry, then a French 502 | `lib/gemini.ts` |
 | Mood jumping | Mood clamped to `currentMood ± 1` in code | `lib/customerTurn.ts` |
 | Inconsistent endings | Hang-up forced on the 2nd reply in a row at -2 (opening line excluded) and refused otherwise; « resolved » only at +2 | `lib/customerTurn.ts` |
@@ -109,6 +109,7 @@ app/
   api/chat · api/evaluate · api/log
 components/                      Client UI (SimulationView, ChatWindow, MoodMeter, ReportView, …)
 lib/
+  apiRequest.ts    JSON body parsing and error responses for the API routes
   gemini.ts        SDK client, structured-output helper, zod → Gemini schema
   scenarios.ts     The three scenarios (server-only)
   prompts.ts       Customer and judge prompts

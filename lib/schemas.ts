@@ -101,7 +101,6 @@ export const ChatRequestSchema = z
     const issues = transcriptIssues(transcript, { lastMood: currentMood, moodField: "currentMood", mustEndWithAgent: true });
     for (const issue of issues) ctx.addIssue({ code: "custom", ...issue });
   });
-export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
 /** POST /api/evaluate body: the finished call, sent once. */
 export const EvaluateRequestSchema = z
@@ -116,7 +115,6 @@ export const EvaluateRequestSchema = z
     const issues = transcriptIssues(transcript, { lastMood: finalMood, moodField: "finalMood", mustEndWithAgent: false });
     for (const issue of issues) ctx.addIssue({ code: "custom", ...issue });
   });
-export type EvaluateRequest = z.infer<typeof EvaluateRequestSchema>;
 
 /**
  * What Gemini must return for one customer turn. Field order is deliberate:

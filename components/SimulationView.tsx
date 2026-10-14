@@ -285,12 +285,6 @@ function CallSession({ scenario, difficulty, onReplay }: CallSessionProps) {
               </div>
             </div>
           )}
-
-          {process.env.NODE_ENV === "development" && (
-            <p className="mt-2 font-mono text-[11px] text-muted">
-              dev · problème caché révélé : {state.hiddenIssueRevealed ? "oui" : "non"}
-            </p>
-          )}
         </header>
 
         <ChatWindow

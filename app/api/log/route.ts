@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { jsonError, parseJsonBody } from "@/lib/apiRequest";
 import { clientKey, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { getScenario } from "@/lib/scenarios";
 import { CRITERION_IDS, SessionLogSchema } from "@/lib/schemas";
@@ -23,29 +24,16 @@ export async function POST(request: Request): Promise<Response> {
   const limited = rateLimit("log", clientKey(request));
   if (!limited.ok) return rateLimitResponse(limited.retryAfterSec, "d'enregistrements");
 
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_CHARS) {
-    return Response.json({ error: "Requête trop volumineuse." }, { status: 413 });
-  }
+  const body = await parseJsonBody(request, SessionLogSchema, MAX_BODY_CHARS);
+  if (!body.ok) return body.response;
 
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    return Response.json({ error: "Requête invalide." }, { status: 400 });
-  }
-
-  const parsed = SessionLogSchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide." }, { status: 400 });
-  }
-  const log = parsed.data;
+  const log = body.data;
   if (!getScenario(log.scenarioId)) {
-    return Response.json({ error: "Scénario introuvable." }, { status: 400 });
+    return jsonError(400, "Scénario introuvable.");
   }
   const expectedOverall = computeOverall(CRITERION_IDS.map((id) => ({ id, score: log.scores[id] })));
   if (log.overall !== expectedOverall) {
-    return Response.json({ error: "Le score global ne correspond pas aux critères." }, { status: 400 });
+    return jsonError(400, "Le score global ne correspond pas aux critères.");
   }
 
   const webhookUrl = process.env.APPS_SCRIPT_WEBHOOK_URL?.trim();

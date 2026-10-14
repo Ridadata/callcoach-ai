@@ -4,8 +4,6 @@
 
 A web app where customer-service trainees practise difficult calls with a virtual customer played by Google Gemini, then get an evidence-based coaching report. Results go to Google Sheets, and the trainer receives a weekly summary by email.
 
-**Live demo:** _add the Vercel URL here after deployment_
-
 | Accueil | Simulation | Rapport |
 | --- | --- | --- |
 | ![Accueil: first name, scenario cards and difficulty](docs/screenshots/accueil.png) | ![Simulation: chat with mood meter, timer and message counter](docs/screenshots/simulation.png) | ![Rapport: indicative score, criteria with verified quotes](docs/screenshots/rapport.png) |
