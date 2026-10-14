@@ -79,7 +79,7 @@ function Report({ report }: { report: StoredReport }) {
               {overall}
               <span className="text-2xl font-semibold text-muted">/100</span>
             </p>
-            <p className="mt-2 max-w-48 text-xs text-muted sm:mx-auto">Ce score sert à t&apos;entraîner, pas à t&apos;évaluer.</p>
+            <p className="mt-2 mx-auto max-w-48 text-xs text-muted">Ce score sert à t&apos;entraîner, pas à t&apos;évaluer.</p>
           </div>
           <div>
             <div className="flex flex-wrap gap-2">
